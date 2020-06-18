@@ -4,7 +4,7 @@ import random
 import aiohttp
 import requests
 import datetime
-from citycode import City
+from 火车票.citycode import City
 # from pprint import pprint
 import time
 import pandas as pd

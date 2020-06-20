@@ -101,11 +101,11 @@ class Ticket:
             # 目的地
             to_city = self.get_keys(data_list[7])
             # 出发时间
-            starting_time = data_list[8] if data_list[1] != '列车停运' else '列车停运'
+            starting_time = data_list[8] if data_list[1] == '预订' else '列车停运'
             # 到达时间
-            ending_time = data_list[9] if data_list[1] != '列车停运' else '-'
+            ending_time = data_list[9] if data_list[1] == '预订' else '-'
             # 历时
-            duration = data_list[10] if data_list[1] != '列车停运' else '-'
+            duration = data_list[10] if data_list[1] == '预订' else '-'
             if duration != '-':
                 duration_time = datetime.timedelta(hours=int(duration.split(':')[0]),
                                                    minutes=int(duration.split(':')[1]))
@@ -113,7 +113,6 @@ class Ticket:
                 start_time = datetime.datetime.strptime(starting_time, '%H:%M')
                 zero_time = datetime.datetime.strptime('00:00', '%H:%M')
                 dif_time = total_time - (start_time - zero_time)
-                print(dif_time)
                 if duration_time < dif_time:
                     ending_time = f'当日到达 {ending_time}'
                 elif duration_time < dif_time + total_time:

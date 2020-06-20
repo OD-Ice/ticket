@@ -16,27 +16,6 @@ class Ticket:
         self.start_url = 'https://kyfw.12306.cn/otn/leftTicket/query'
         self.user_agents = User_Agent()
         self.writer = pd.ExcelWriter('车次信息.xlsx')
-        self.tb = pt.PrettyTable()
-        self.tb.field_names = [
-            '车次',
-            '始发站',
-            '终点站',
-            '出发地',
-            '目的地',
-            '出发时间',
-            '到达时间',
-            '历时',
-            '出发日期',
-            '特等座 商务座',
-            '一等座',
-            '二等座 二等包座',
-            '高级软卧',
-            '软卧 一等卧',
-            '动卧',
-            '硬卧 二等卧',
-            '硬座',
-            '无座'
-        ]
 
     async def get_page(self, date, from_city, to_city, is_adult, cookies):
         time.sleep(1)
@@ -50,7 +29,7 @@ class Ticket:
             'purpose_codes': is_adult  # ADULT/0X00
         }
         async with aiohttp.ClientSession(headers=headers, cookies=cookies) as session:
-            async with await session.get(self.start_url, headers=headers, params=params) as res:
+            async with await session.get(self.start_url, params=params) as res:
                 result = await res.json()
                 return [result, date]
 
@@ -69,6 +48,26 @@ class Ticket:
         return str([k for k, v in city.city.items() if v == value]).strip("['").strip("']")
 
     def parse(self, t):
+        tb = pt.PrettyTable()
+        tb.field_names = [
+            '车次',
+            '始发站',
+            '终点站',
+            '出发地',
+            '目的地',
+            '出发时间',
+            '到达时间',
+            '历时',
+            '特等座 商务座',
+            '一等座',
+            '二等座 二等包座',
+            '高级软卧',
+            '软卧 一等卧',
+            '动卧',
+            '硬卧 二等卧',
+            '硬座',
+            '无座'
+        ]
         data = t.result()[0]['data']['result']
         data_dict = {
             '车次': [],
@@ -79,7 +78,6 @@ class Ticket:
             '出发时间': [],
             '到达时间': [],
             '历时': [],
-            '出发日期': [],
             '特等座 商务座': [],
             '一等座': [],
             '二等座 二等包座': [],
@@ -103,16 +101,29 @@ class Ticket:
             # 目的地
             to_city = self.get_keys(data_list[7])
             # 出发时间
-            starting_time = data_list[8] if data_list[1] != '列车停运' else '-'
+            starting_time = data_list[8] if data_list[1] != '列车停运' else '列车停运'
             # 到达时间
             ending_time = data_list[9] if data_list[1] != '列车停运' else '-'
             # 历时
             duration = data_list[10] if data_list[1] != '列车停运' else '-'
-            # 出发日期
-            start_data = datetime.datetime.strptime(data_list[13], '%Y%m%d').strftime('%Y-%m-%d') \
-                if data_list[1] != '列车停运' else '-'
+            if duration != '-':
+                duration_time = datetime.timedelta(hours=int(duration.split(':')[0]),
+                                                   minutes=int(duration.split(':')[1]))
+                total_time = datetime.timedelta(days=1)
+                start_time = datetime.datetime.strptime(starting_time, '%H:%M')
+                zero_time = datetime.datetime.strptime('00:00', '%H:%M')
+                dif_time = total_time - (start_time - zero_time)
+                print(dif_time)
+                if duration_time < dif_time:
+                    ending_time = f'当日到达 {ending_time}'
+                elif duration_time < dif_time + total_time:
+                    ending_time = f'次日到达 {ending_time}'
+                elif duration_time < dif_time + 2 * total_time:
+                    ending_time = f'两日到达 {ending_time}'
+                else:
+                    ending_time = f'三日到达 {ending_time}'
             # 特等座 商务座
-            busines_class = data_list[32] if data_list[32] != '' else '-'
+            business_class = data_list[32] if data_list[32] != '' else '-'
             # 一等座
             first_class = data_list[31] if data_list[31] != '' else '-'
             # 二等座 二等包座
@@ -131,8 +142,8 @@ class Ticket:
             no_seats = data_list[26] if data_list[26] != '' else '-'
 
             # prettytable
-            self.tb.add_row([train_number, departure_station, terminus, from_city, to_city, starting_time,
-                             ending_time, duration, start_data, busines_class, first_class, second_class,
+            tb.add_row([train_number, departure_station, terminus, from_city, to_city, starting_time,
+                             ending_time, duration, business_class, first_class, second_class,
                              soft_beds, first_beds, move_beds, hard_beds, hard_seats, no_seats])
 
             data_dict['车次'].append(train_number)
@@ -143,8 +154,7 @@ class Ticket:
             data_dict['出发时间'].append(starting_time)
             data_dict['到达时间'].append(ending_time)
             data_dict['历时'].append(duration)
-            data_dict['出发日期'].append(start_data)
-            data_dict['特等座 商务座'].append(busines_class)
+            data_dict['特等座 商务座'].append(business_class)
             data_dict['一等座'].append(first_class)
             data_dict['二等座 二等包座'].append(second_class)
             data_dict['高级软卧'].append(soft_beds)
@@ -156,7 +166,9 @@ class Ticket:
 
         data_pd = pd.DataFrame(data_dict)
         sheet_name = t.result()[1]
-        print(self.tb)
+        print(sheet_name)
+        print(tb)
+        print('=' * 100)
         data_pd.to_excel(self.writer, sheet_name=sheet_name, index=False)
 
     async def run(self):
@@ -168,13 +180,20 @@ class Ticket:
         is_adult = 'ADULT' if des == 'A' or des == 'a' else '0X00' if des == 'S' or des == 's' else None
         cookies = self.get_cookies()
 
-        for i in range(3):
-            now_date = (datetime.datetime.now() + datetime.timedelta(days=i)).strftime('%Y-%m-%d')
-            c = self.get_page(date=now_date, from_city=from_city, to_city=to_city, is_adult=is_adult, cookies=cookies)
+        start_date = input('请输入出发日期(xxxx-xx-xx)：')
+        start_date = time.strftime('%Y-%m-%d', time.strptime(start_date, '%Y-%m-%d'))
+        end_date = input('请输入返程日期(xxxx-xx-xx)\n没有请输入"N"：')
+        if end_date in ['n', 'N']:
+            dates = [start_date]
+        else:
+            end_date = time.strftime('%Y-%m-%d', time.strptime(end_date, '%Y-%m-%d'))
+            dates = [start_date, end_date]
+        for date in dates:
+            c = self.get_page(date=date, from_city=from_city, to_city=to_city, is_adult=is_adult, cookies=cookies)
+            from_city, to_city = to_city, from_city
             task = asyncio.create_task(c)
             task.add_done_callback(self.parse)
             tasks.append(task)
-
         await asyncio.wait(tasks)
 
     def save(self):
@@ -184,6 +203,7 @@ class Ticket:
 if __name__ == '__main__':
     start = time.time()
     ticket = Ticket()
-    asyncio.run(ticket.run())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(ticket.run())
     ticket.save()
     print('总耗时：', time.time() - start)

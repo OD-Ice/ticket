@@ -142,8 +142,8 @@ class Ticket:
 
             # prettytable
             tb.add_row([train_number, departure_station, terminus, from_city, to_city, starting_time,
-                             ending_time, duration, business_class, first_class, second_class,
-                             soft_beds, first_beds, move_beds, hard_beds, hard_seats, no_seats])
+                        ending_time, duration, business_class, first_class, second_class,
+                        soft_beds, first_beds, move_beds, hard_beds, hard_seats, no_seats])
 
             data_dict['车次'].append(train_number)
             data_dict['始发站'].append(departure_station)
